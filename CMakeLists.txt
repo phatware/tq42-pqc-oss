@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-set(CMAKE_CXX_STANDARD 17) 
+set(CMAKE_CXX_STANDARD 17)
 
 project(pqc C CXX)
 
@@ -7,10 +7,10 @@ set(SANITIZE OFF CACHE BOOL "Use address sanitizer")
 set(COVERAGE OFF CACHE BOOL "Use code coverage")
 set(HASWELL OFF CACHE BOOL "Use MOVBE, MMX, SSE, SSE2, SSE3, SSSE3, SSE4.1, SSE4.2, POPCNT, CX16, SAHF, FXSR, AVX, XSAVE, PCLMUL, FSGSBASE, RDRND, F16C, AVX2, BMI, BMI2, LZCNT, FMA, MOVBE and HLE")
 
-set(BENCHMARK ON CACHE BOOL "Build benchmark")
-set(PYTHON ON CACHE BOOL "Build Python module")
-set(EXAMPLES ON CACHE BOOL "Build examples")
-set(TESTS ON CACHE BOOL "Build tests")
+set(BENCHMARK OFF CACHE BOOL "Build benchmark")
+set(PYTHON OFF CACHE BOOL "Build Python module")
+set(EXAMPLES OFF CACHE BOOL "Build examples")
+set(TESTS OFF CACHE BOOL "Build tests")
 
 if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "AppleClang")
     set(COMPILER_CLANG ON)
