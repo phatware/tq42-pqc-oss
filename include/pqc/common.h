@@ -121,6 +121,11 @@ extern "C"
 
     size_t PQC_API PQC_context_close(CIPHER_HANDLE ctx);
 
+    // Rust compatibility function for signature verification; keep for compatibility
+    bool verify_signature_rust_compat(const uint8_t* buffer, size_t buffer_len,
+        const uint8_t* signature, size_t signature_len,
+        const uint8_t* public_key, size_t public_key_len);
+
 #define PQC_LENGTH_SYMMETRIC 0
 #define PQC_LENGTH_IV 1
 #define PQC_LENGTH_PUBLIC 2

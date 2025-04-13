@@ -265,3 +265,128 @@ rej:
     /* Write signature */
     pack_sig(signature.data(), signature.const_data(), z.vec, h.vec);
 }
+
+// This function is added to ensure compatibility with the Rust implementation
+// I am not sure Rust implementation is correct at this point, but it could be just const size alignment issue
+// Will keep here unless no longer needed
+
+#undef SEEDBYTES
+#undef CRHBYTES
+#undef POLYT1_PACKEDBYTES
+#undef POLYT0_PACKEDBYTES
+#undef TR_BYTES
+
+#undef K
+#undef L
+#undef GAMMA1
+#undef GAMMA2
+#undef BETA
+#undef OMEGA
+#undef PUBLICKEYBYTES
+#undef SIGNBYTES
+
+#define SEEDBYTES 32
+#define CRHBYTES 64 // Changed from 48 to match Rust
+#define POLYT1_PACKEDBYTES 320
+#define POLYT0_PACKEDBYTES 416
+#define TR_BYTES 64  // Explicitly defined to match Rust
+
+#define TAU 60
+#define BETA (TAU * 2) // 120
+#define OMEGA 75
+#define POLYVECH_PACKEDBYTES (OMEGA + K) // 83
+#define SIGNBYTES (SEEDBYTES + L * POLYZ_PACKEDBYTES + POLYVECH_PACKEDBYTES) // 4,595
+
+#define K 8
+#define L 7
+#define GAMMA1 (1 << 19)
+#define GAMMA2 ((Q - 1) / 32)
+#define PUBLICKEYBYTES (SEEDBYTES + K * POLYT1_PACKEDBYTES)
+
+// New verification function compatible with Rust implementation
+bool verify_signature_rust_compat(const uint8_t* buffer, size_t buffer_len,
+                                 const uint8_t* signature, size_t signature_len,
+                                 const uint8_t* public_key, size_t public_key_len) {
+    // 5 mode of Dilithium
+    const uint8_t modeK = 8;
+    const uint8_t modeL = 7;
+
+    // Validate input sizes
+    if (signature_len != SIGNBYTES) {
+        return false;
+    }
+    if (public_key_len != PUBLICKEYBYTES) {
+        return false;
+    }
+
+    uint8_t buf[K * POLYW1_PACKEDBYTES];
+    uint8_t rho[SEEDBYTES];
+    uint8_t mu[CRHBYTES];
+    uint8_t c[SEEDBYTES];
+    uint8_t c2[SEEDBYTES];
+    poly cp;
+    polyvecl mat[K];
+    polyvecl z;
+    polyveck t1, w1, h;
+    keccak_state state;
+
+    // Unpack public key
+    unpack_pk(rho, &t1, public_key);
+
+    // Unpack signature
+    if (unpack_sig(c, &z, &h, signature)) {
+        return false;
+    }
+
+    // Check z norm
+    if (polyvecl_chknorm(z.vec, GAMMA1 - BETA, modeL)) {
+        return false;
+    }
+
+    // Compute CRH(CRH(rho, t1), msg) as in Rust
+    // In Rust: CRH(rho, t1) is 32 bytes, then CRH(CRH(rho, t1), msg) is 64 bytes
+    uint8_t tr[TR_BYTES];
+    shake256(tr, SEEDBYTES, public_key, PUBLICKEYBYTES); // Matches Rust's keypair
+    shake256_init(&state);
+    shake256_absorb(&state, tr, SEEDBYTES); // Use SEEDBYTES as in Rust signature
+    shake256_absorb(&state, buffer, buffer_len);
+    shake256_finalize(&state);
+    shake256_squeeze(mu, CRHBYTES, &state);
+
+    // Matrix-vector multiplication: compute Az - c * 2^d * t1
+    poly_challenge(&cp, c);
+    polyvec_matrix_expand(mat, rho, modeK);
+
+    polyvecl_ntt(z.vec, modeL);
+    polyvec_matrix_pointwise_montgomery(&w1, mat, &z, modeK);
+
+    poly_ntt(&cp);
+    polyveck_shiftl(t1.vec, modeK);
+    polyveck_ntt(t1.vec, modeK);
+    polyveck_pointwise_poly_montgomery(t1.vec, &cp, t1.vec, modeK);
+
+    polyveck_sub(w1.vec, w1.vec, t1.vec, modeK);
+    polyveck_reduce(w1.vec, modeK);
+    polyveck_invntt_tomont(w1.vec, modeK);
+
+    // Reconstruct w1
+    polyveck_caddq(w1.vec, modeK);
+    polyveck_use_hint(w1.vec, w1.vec, h.vec, modeK);
+    polyveck_pack_w1(buf, w1.vec, modeK);
+
+    // Call random oracle and verify challenge
+    shake256_init(&state);
+    shake256_absorb(&state, mu, CRHBYTES);
+    shake256_absorb(&state, buf, K * POLYW1_PACKEDBYTES);
+    shake256_finalize(&state);
+    shake256_squeeze(c2, SEEDBYTES, &state);
+
+    // Compare challenge
+    for (size_t i = 0; i < SEEDBYTES; ++i) {
+        if (c[i] != c2[i]) {
+            return false;
+        }
+    }
+
+    return true;
+}
