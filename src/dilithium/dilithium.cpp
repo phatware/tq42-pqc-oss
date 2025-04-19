@@ -304,7 +304,7 @@ rej:
 #define PUBLICKEYBYTES (SEEDBYTES + K * POLYT1_PACKEDBYTES)
 
 // New verification function compatible with Rust implementation
-bool verify_signature_rust_compat(const uint8_t* buffer, size_t buffer_len,
+size_t verify_signature_rust_compat(const uint8_t* buffer, size_t buffer_len,
                                  const uint8_t* signature, size_t signature_len,
                                  const uint8_t* public_key, size_t public_key_len) {
     // 5 mode of Dilithium
@@ -313,10 +313,10 @@ bool verify_signature_rust_compat(const uint8_t* buffer, size_t buffer_len,
 
     // Validate input sizes
     if (signature_len != SIGNBYTES) {
-        return false;
+        return 0;
     }
     if (public_key_len != PUBLICKEYBYTES) {
-        return false;
+        return 0;
     }
 
     uint8_t buf[K * POLYW1_PACKEDBYTES];
@@ -335,12 +335,12 @@ bool verify_signature_rust_compat(const uint8_t* buffer, size_t buffer_len,
 
     // Unpack signature
     if (unpack_sig(c, &z, &h, signature)) {
-        return false;
+        return 0;
     }
 
     // Check z norm
     if (polyvecl_chknorm(z.vec, GAMMA1 - BETA, modeL)) {
-        return false;
+        return 0;
     }
 
     // Compute CRH(CRH(rho, t1), msg) as in Rust
@@ -384,9 +384,9 @@ bool verify_signature_rust_compat(const uint8_t* buffer, size_t buffer_len,
     // Compare challenge
     for (size_t i = 0; i < SEEDBYTES; ++i) {
         if (c[i] != c2[i]) {
-            return false;
+            return 0;
         }
     }
 
-    return true;
+    return 1;
 }
